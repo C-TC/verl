@@ -30,9 +30,11 @@ def run_ppo(config, compute_score=None):
         # this is for local ray cluster
         ray.init(runtime_env={'env_vars': {'TOKENIZERS_PARALLELISM': 'true', 'NCCL_DEBUG': 'WARN'}})
 
+    # launch main_task first?
     ray.get(main_task.remote(config, compute_score))
 
 
+# this is the "single controller"
 @ray.remote(num_cpus=1)  # please make sure main_task is not scheduled on head
 def main_task(config, compute_score=None):
     from verl.utils.fs import copy_local_path_from_hdfs
@@ -54,12 +56,14 @@ def main_task(config, compute_score=None):
         assert config.actor_rollout_ref.actor.strategy == config.critic.strategy
         from verl.workers.fsdp_workers import ActorRolloutRefWorker, CriticWorker
         from verl.single_controller.ray import RayWorkerGroup
+        # FSDP ray worker group
         ray_worker_group_cls = RayWorkerGroup
 
     elif config.actor_rollout_ref.actor.strategy == 'megatron':
         assert config.actor_rollout_ref.actor.strategy == config.critic.strategy
         from verl.workers.megatron_workers import ActorRolloutRefWorker, CriticWorker
         from verl.single_controller.ray.megatron import NVMegatronRayWorkerGroup
+        # Megatron ray worker group
         ray_worker_group_cls = NVMegatronRayWorkerGroup
 
     else:
@@ -67,6 +71,7 @@ def main_task(config, compute_score=None):
 
     from verl.trainer.ppo.ray_trainer import ResourcePoolManager, Role
 
+    # dispatch workers, or just define a mapping to remote worker classes?
     role_worker_mapping = {
         Role.ActorRollout: ray.remote(ActorRolloutRefWorker),
         Role.Critic: ray.remote(CriticWorker),
@@ -77,6 +82,8 @@ def main_task(config, compute_score=None):
     resource_pool_spec = {
         global_pool_id: [config.trainer.n_gpus_per_node] * config.trainer.nnodes,
     }
+    # all use the same pool?
+    # This is colocation of everything? Guess we can change the mapping from here?
     mapping = {
         Role.ActorRollout: global_pool_id,
         Role.Critic: global_pool_id,
@@ -89,6 +96,7 @@ def main_task(config, compute_score=None):
     # - for code related prompt, we send to a sandbox if there are test cases
     # - finally, we combine all the rewards together
     # - The reward type depends on the tag of the data
+    # TODO: reward is optional
     if config.reward_model.enable:
         if config.reward_model.strategy == 'fsdp':
             from verl.workers.fsdp_workers import RewardModelWorker
@@ -100,6 +108,7 @@ def main_task(config, compute_score=None):
         mapping[Role.RewardModel] = global_pool_id
 
     reward_manager_name = config.reward_model.get("reward_manager", "naive")
+    # TODO: what is reward manager?
     if reward_manager_name == 'naive':
         from verl.workers.reward_manager import NaiveRewardManager
         reward_manager_cls = NaiveRewardManager

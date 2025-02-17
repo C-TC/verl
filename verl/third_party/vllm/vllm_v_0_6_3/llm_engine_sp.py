@@ -58,6 +58,7 @@ logger = init_logger(__name__)
 _LOCAL_LOGGING_INTERVAL_SEC = 5
 
 
+# generation engine, modified based on LLMEngine in vllm (fragile!)
 class LLMEngine(LLMEngine):
     """An LLM engine that receives requests and generates texts.
 

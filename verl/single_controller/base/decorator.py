@@ -123,6 +123,7 @@ def dispatch_megatron_compute_data_proto(worker_group, *args, **kwargs):
     assert isinstance(worker_group, MegatronWorkerGroup)
 
     splitted_args, splitted_kwargs = _split_args_kwargs_data_proto(worker_group.dp_size, *args, **kwargs)
+    # from single controller to each rank?
     return dispatch_megatron_compute(worker_group, *splitted_args, **splitted_kwargs)
 
 
@@ -400,6 +401,7 @@ def register(dispatch_mode=Dispatch.ALL_TO_ALL, execute_mode=Execute.ALL, blocki
         @wraps(func)
         def inner(*args, **kwargs):
             if materialize_futures:
+                # execute the actual function after get
                 args, kwargs = _materialize_futures(*args, **kwargs)
             return func(*args, **kwargs)
 

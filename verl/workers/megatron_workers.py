@@ -139,6 +139,7 @@ class ActorRolloutRefWorker(MegatronWorker):
         from verl.utils.megatron_utils import get_model, init_megatron_optim_config
         from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig, GenerationConfig
 
+        # init tokenizer, model, optimizer
         # Step 1: initialize the tokenizer
         local_path = copy_local_path_from_hdfs(model_path)
         self.tokenizer = hf_tokenizer(local_path)
@@ -176,6 +177,7 @@ class ActorRolloutRefWorker(MegatronWorker):
         # Step 3: initialize the megatron model
         if self._is_actor and self._is_rollout:
             # Initialize the 3D HybridEngine
+            # allgather emans the weight broadcast in training (pp) -> inference (extra dp)
             hybrid_engine = AllGatherPPModel(model_provider=megatron_actor_model_provider)
             # Fetch the model at current rank
             actor_module = hybrid_engine.this_rank_models
@@ -255,6 +257,7 @@ class ActorRolloutRefWorker(MegatronWorker):
             log_gpu_memory_usage('After building vllm rollout', logger=logger)
 
             # perform weight resharding between actor and rollout
+            # resharding the weights actor TPxPPxDP -> rollout TPx(PPxDP as new DP), since actor and rollout colocate.
             sharding_manager = MegatronVLLMShardingManager(module=self.hybrid_engine,
                                                            inference_engine=rollout.inference_engine,
                                                            model_config=self.actor_model_config,
@@ -304,6 +307,7 @@ class ActorRolloutRefWorker(MegatronWorker):
             )
 
         if self._is_actor:
+            # megatron ppo actor
             self.actor = MegatronPPOActor(config=self.config.actor,
                                           model_config=self.actor_model_config,
                                           megatron_config=megatron_config,

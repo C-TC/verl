@@ -48,6 +48,7 @@ def _megatron_calc_layer_map(config):
     return layer_map
 
 
+# bridging model weights in Transformers to Megatron?
 def load_state_dict_to_megatron_llama(state_dict, wrapped_models, config, params_dtype, is_value_model=False):
     """Load merged state_dict to sharded Megatron module in training.
     """

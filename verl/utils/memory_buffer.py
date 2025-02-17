@@ -158,6 +158,8 @@ class MemoryBufferModuleWrapper:
 
 
 class MegatronMemoryBufferForRollout(object):
+    # This is strong assumptions
+    # TODO: check if it corresponds to paper?
     """
     We assume that
     - inference engine has tp + dp

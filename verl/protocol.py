@@ -169,6 +169,7 @@ class DataProtoItem:
     meta_info: Dict = field(default_factory=dict)
 
 
+# a data protocol, tensordict is not enough?
 @dataclass
 class DataProto:
     """
@@ -602,6 +603,11 @@ import ray
 
 @dataclass
 class DataProtoFuture:
+    # important: future helps to avoid actual data fetching on driver
+    # avoids blocking wait, and allows asynchronous execution
+    # collect_fn is a Callable that reduces the list of futures to a DataProto
+    # dispatch_fn is a Callable that partitions the DataProto into a list of DataProto of size world_size and then select
+    # ray.get() -> collect -> dispatch(optional)
     """
     DataProtoFuture aims to eliminate actual data fetching on driver. By doing so, the driver doesn't have to wait
     for data so that asynchronous execution becomes possible. 

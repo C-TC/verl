@@ -38,6 +38,7 @@ from enum import Enum
 
 import traceback
 
+# TODO: this contains hacking code? Probably useful?
 
 def truncatefn(s, length=300):
     assert isinstance(s, str)

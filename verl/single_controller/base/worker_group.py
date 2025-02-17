@@ -148,6 +148,7 @@ class WorkerGroup:
                 continue
 
             if hasattr(method, MAGIC_ATTR):
+                # bind the dispatch and collect from decorator.py
                 # this method is decorated by register
                 attribute = getattr(method, MAGIC_ATTR)
                 assert isinstance(attribute, Dict), f'attribute must be a dictionary. Got {type(attribute)}'

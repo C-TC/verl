@@ -77,6 +77,7 @@ class RayResourcePool(ResourcePool):
 
         lifetime = 'detached' if self.detached else None
 
+        # ray group placement
         pgs = [
             placement_group(bundles=bundles, strategy=strategy, name=pg_name_prefix + str(idx), lifetime=lifetime)
             for idx, bundles in enumerate(pg_scheme)
@@ -127,6 +128,7 @@ def merge_resource_pool(rp1: RayResourcePool, rp2: RayResourcePool) -> RayResour
 
 class RayClassWithInitArgs(ClassWithInitArgs):
 
+    # remote class with init args
     def __init__(self, cls, *args, **kwargs) -> None:
         # self._options = kwargs.pop('options', dict())
         super().__init__(cls, *args, **kwargs)
@@ -319,6 +321,7 @@ class RayWorkerGroup(WorkerGroup):
     def execute_rank_zero_sync(self, method_name: str, *args, **kwargs):
         return ray.get(self.execute_rank_zero_async(method_name, *args, **kwargs))
 
+    # execute target method on rank zero worker
     def execute_rank_zero_async(self, method_name: str, *args, **kwargs):
         remote_call = getattr(self._workers[0], method_name)
         return remote_call.remote(*args, **kwargs)
@@ -326,6 +329,7 @@ class RayWorkerGroup(WorkerGroup):
     def execute_rank_zero(self, method_name: str, *args, **kwargs):
         return self.execute_rank_zero_async(method_name, *args, **kwargs)
 
+    # execute target method on all workers
     def execute_all(self, method_name: str, *args, **kwargs):
         return self.execute_all_async(method_name, *args, **kwargs)
 
@@ -333,6 +337,7 @@ class RayWorkerGroup(WorkerGroup):
         return ray.get(self.execute_all_async(method_name, *args, **kwargs))
 
     def execute_all_async(self, method_name: str, *args, **kwargs):
+        # hacky!
         # 这里我们假设，如果 args 和 kwargs 里面所有的参数都是 list，且所有的 list 长度都与 len(self._workers) 一致的话，我们会把
         # list 中的每一个分别发到对应的 worker 上去
         # print(f"execute_all_async: method {method_name}({args}, {kwargs})")

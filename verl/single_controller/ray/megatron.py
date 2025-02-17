@@ -50,6 +50,7 @@ class MegatronRayWorkerGroup(RayWorkerGroup, MegatronWorkerGroup):
                          ray_cls_with_init=ray_cls_with_init,
                          default_megatron_kwargs=default_megatron_kwargs,
                          **kwargs)
+        # init megatron workers
         self.init_megatron(default_megatron_kwargs=default_megatron_kwargs)
         self._megatron_rank_info: DistRankInfo = self.execute_all_sync(method_name='get_megatron_rank_info')
         self._megatron_global_info: DistGlobalInfo = ray.get(

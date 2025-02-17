@@ -82,6 +82,7 @@ class AllGatherPPModel:
     def _build_param_buffer(self, pp_rank):
         """Build the parameter buffer in each pp rank"""
         model = self.pp_models[pp_rank]
+        # build a contiguous memory buffer for the whole model
         weight_buffer_meta = get_weight_buffer_meta_from_module(model)
         self.memory_buffers[pp_rank] = build_memory_buffer(weight_buffer_meta)
 
@@ -208,6 +209,7 @@ class AllGatherPPModel:
         return self._pp_models
 
 
+# is this efficient? pp in training becomes dp in inference, parameters are broadcasted to all pp ranks
 """
 Megatron Hybrid Engine:
 - During training, only the current pp stage holds the parameters

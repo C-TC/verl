@@ -41,6 +41,7 @@ from verl.utils.dataset.rl_dataset import RLHFDataset, collate_fn
 WorkerType = Type[Worker]
 
 
+# Worker roles
 class Role(Enum):
     """
     To create more roles dynamically, you can subclass Role and add new members
@@ -641,6 +642,7 @@ class RayPPOTrainer(object):
 
     def init_workers(self):
         """Init resource pool and worker group"""
+        # ray placement groups
         self.resource_pool_manager.create_resource_pool()
 
         self.resource_pool_to_cls = {pool: {} for pool in self.resource_pool_manager.resource_pool_dict.values()}
@@ -702,6 +704,7 @@ class RayPPOTrainer(object):
             self.rm_wg = all_wg['rm']
             self.rm_wg.init_model()
 
+        # create rollout at the end to better estimate kv cache memory
         # we should create rollout at the end so that vllm can have a better estimation of kv cache memory
         self.actor_rollout_wg = all_wg['actor_rollout']
         self.actor_rollout_wg.init_model()
@@ -788,6 +791,7 @@ class RayPPOTrainer(object):
         batch_size = attention_mask.shape[0]
         global_seqlen_lst = batch.batch['attention_mask'].view(batch_size, -1).sum(-1).tolist()  # (train_batch_size,)
         world_size = self.actor_rollout_wg.world_size
+        # rebalance the data. is balancing tokens a good heuristic?
         global_partition_lst = get_seqlen_balanced_partitions(global_seqlen_lst,
                                                               k_partitions=world_size,
                                                               equal_size=True)
@@ -799,6 +803,7 @@ class RayPPOTrainer(object):
                                                     prefix=logging_prefix)
         metrics.update(global_balance_stats)
 
+    # main training loop
     def fit(self):
         """
         The training loop of PPO.
@@ -830,11 +835,14 @@ class RayPPOTrainer(object):
         # we start from step 1
         self.global_steps += 1
 
+        # iter 0: epoches
         for epoch in range(self.config.trainer.total_epochs):
+            # iter 1: batches
             for batch_dict in self.train_dataloader:
                 metrics = {}
                 timing_raw = {}
 
+                # canonicize the dataset into DataProto?
                 batch: DataProto = DataProto.from_single_dict(batch_dict)
 
                 # pop those keys for generation
@@ -843,12 +851,14 @@ class RayPPOTrainer(object):
                 with _timer('step', timing_raw):
                     # generate a batch
                     with _timer('gen', timing_raw):
+                        # generation/rollout
                         gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
 
                     if self.config.algorithm.adv_estimator == 'remax':
                         with _timer('gen_max', timing_raw):
                             gen_baseline_batch = deepcopy(gen_batch)
                             gen_baseline_batch.meta_info['do_sample'] = False
+                            # remax algortihm needs second round of generation
                             gen_baseline_output = self.actor_rollout_wg.generate_sequences(gen_baseline_batch)
 
                             batch = batch.union(gen_baseline_output)
@@ -864,6 +874,7 @@ class RayPPOTrainer(object):
                     batch.non_tensor_batch['uid'] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))],
                                                              dtype=object)
                     # repeat to align with repeated responses in rollout
+                    # may generate multiple responses for each prompt
                     batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                     batch = batch.union(gen_batch_output)
 
@@ -877,18 +888,21 @@ class RayPPOTrainer(object):
 
                     # recompute old_log_probs
                     with _timer('old_log_prob', timing_raw):
+                        # actor log_prob
                         old_log_prob = self.actor_rollout_wg.compute_log_prob(batch)
                         batch = batch.union(old_log_prob)
 
                     if self.use_reference_policy:
                         # compute reference log_prob
                         with _timer('ref', timing_raw):
+                            # ref log_prob
                             ref_log_prob = self.ref_policy_wg.compute_ref_log_prob(batch)
                             batch = batch.union(ref_log_prob)
 
                     # compute values
                     if self.use_critic:
                         with _timer('values', timing_raw):
+                            # critic values
                             values = self.critic_wg.compute_values(batch)
                             batch = batch.union(values)
 
@@ -898,6 +912,7 @@ class RayPPOTrainer(object):
                         # the results from reward model and rule-based results.
                         if self.use_rm:
                             # we first compute reward model score
+                            # calculate reward
                             reward_tensor = self.rm_wg.compute_rm_score(batch)
                             batch = batch.union(reward_tensor)
 
@@ -924,6 +939,7 @@ class RayPPOTrainer(object):
                     # update critic
                     if self.use_critic:
                         with _timer('update_critic', timing_raw):
+                            # train critic
                             critic_output = self.critic_wg.update_critic(batch)
                         critic_output_metrics = reduce_metrics(critic_output.meta_info['metrics'])
                         metrics.update(critic_output_metrics)
@@ -932,6 +948,7 @@ class RayPPOTrainer(object):
                     if self.config.trainer.critic_warmup <= self.global_steps:
                         # update actor
                         with _timer('update_actor', timing_raw):
+                            # train actor
                             actor_output = self.actor_rollout_wg.update_actor(batch)
                         actor_output_metrics = reduce_metrics(actor_output.meta_info['metrics'])
                         metrics.update(actor_output_metrics)
