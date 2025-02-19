@@ -371,6 +371,7 @@ class ActorRolloutRefWorker(MegatronWorker):
             log_gpu_memory_usage('After entering sharding manager', logger=logger)
 
             prompts = self.sharding_manager.preprocess_data(prompts)
+            # sync weights before rollouts
             output = self.rollout.generate_sequences(prompts=prompts)
 
             log_gpu_memory_usage('After rollout generation', logger=logger)
@@ -438,6 +439,7 @@ class CriticWorker(MegatronWorker):
         super().__init__()
         self.config = config
 
+        # some guidance on how to not colocate workers
         # NOTE(sgm): We utilize colocate WorkerGroup by default.
         # As a result, Workers for different model share the same process.
         # Therefore, we only require one distribute initialization.

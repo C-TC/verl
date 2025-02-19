@@ -144,6 +144,7 @@ class vLLMRollout(BaseRollout):
         for key, value in old_sampling_params_args.items():
             setattr(self.sampling_params, key, value)
 
+    # vllm rollout
     @torch.no_grad()
     def generate_sequences(self, prompts: DataProto, **kwargs) -> DataProto:
         # rebuild vllm cache engine

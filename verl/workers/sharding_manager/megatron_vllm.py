@@ -345,6 +345,7 @@ class MegatronVLLMShardingManager(BaseShardingManager):
         return origin_params
 
     def __enter__(self):
+        # gather parameters to inference engine
         # create a new cuda space for parameters not in this pp rank
         self.module.load_params_to_cuda()
         # broadcast the parameters from pp rank to other ranks
@@ -381,6 +382,7 @@ class MegatronVLLMShardingManager(BaseShardingManager):
         # prompts are identical for each training tp. We select for each inference tp
         micro_dp_size = get_micro_data_parallel_world_size()
         micro_dp_rank = get_micro_data_parallel_rank()
+        # get all data batch and only keep the needed chunk
 
         # broadcast from tp=0 to other tp ranks
         broadcast_dict_tensor(data.batch,
@@ -395,6 +397,7 @@ class MegatronVLLMShardingManager(BaseShardingManager):
 
     def postprocess_data(self, data: DataProto) -> DataProto:
         meta_info = data.meta_info
+        # all gather result among micro-dp and pp groups
         # all gather batch among micro-dp groups
         micro_dp_size = get_micro_data_parallel_world_size()
         if micro_dp_size > 1:
